@@ -7,6 +7,7 @@ import (
 
 	"log"
 
+	"github.com/Nilfgard13/GOSTORE/app/database/seeder"
 	"github.com/joho/godotenv"
 
 	"github.com/gorilla/mux"
@@ -37,22 +38,48 @@ type DBConfig struct {
 func (server *Server) Initialize(appConfig AppConfig, dbConfig DBConfig) {
 	fmt.Println("Welcome To " + appConfig.AppName)
 
-	var err error
+	// var err error
 
+	// if dbConfig.DBDriver == "mysql" {
+	// 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", dbConfig.DBUSer, dbConfig.DBPassword, dbConfig.DBHost, dbConfig.DBPort, dbConfig.DBName)
+	// 	server.DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	// } else {
+	// 	dsn := fmt.Sprintf("user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local")
+	// 	server.DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	// }
+
+	// if err != nil {
+	// 	panic("Failed on connecting to the database server")
+	// }
+
+	server.InitializeDB(dbConfig)
+	server.InitializeRoutes()
+	seeder.DBSeed(server.DB)
+}
+
+func (server *Server) InitializeDB(dbConfig DBConfig) {
+	var err error
 	if dbConfig.DBDriver == "mysql" {
 		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", dbConfig.DBUSer, dbConfig.DBPassword, dbConfig.DBHost, dbConfig.DBPort, dbConfig.DBName)
 		server.DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	} else {
-		dsn := fmt.Sprintf("user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local")
-		server.DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+		// dsn := fmt.Sprintf("user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local")
+		// server.DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	}
 
 	if err != nil {
 		panic("Failed on connecting to the database server")
 	}
 
-	server.Router = mux.NewRouter()
-	server.InitializeRoutes()
+	for _, model := range RegisterModel() {
+		err = server.DB.Debug().AutoMigrate(model.Model)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	fmt.Println("Database Migration Success")
 }
 
 func (server *Server) Run(addr string) {
