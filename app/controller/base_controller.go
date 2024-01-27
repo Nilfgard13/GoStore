@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"os"
 
@@ -15,14 +16,16 @@ import (
 )
 
 type Server struct {
-	DB     *gorm.DB
-	Router *mux.Router
+	DB        *gorm.DB
+	Router    *mux.Router
+	AppConfig *AppConfig
 }
 
 type AppConfig struct {
 	AppName string
 	AppEnv  string
 	AppPort string
+	AppURL  string
 }
 
 type DBConfig struct {
@@ -34,10 +37,33 @@ type DBConfig struct {
 	DBDriver   string
 }
 
+type PageLink struct {
+	Page          int32
+	Url           string
+	IsCurrentPage bool
+}
+
+type PaginationLink struct {
+	CurrentPage string
+	NextPage    string
+	PrevPage    string
+	TotalRow    int32
+	TotalPage   int32
+	Link        []PageLink
+}
+
+type PaginationParams struct {
+	Path        string
+	TotalRow    int32
+	PerPage     int32
+	CurrentPage int32
+}
+
 func (server *Server) Initialize(appConfig AppConfig, dbConfig DBConfig) {
 	fmt.Println("Welcome To " + appConfig.AppName)
 
 	server.InitializeDB(dbConfig)
+	server.InitializeAppConfig(appConfig)
 	server.InitializeRoutes()
 	// seeder.DBSeed(server.DB)
 }
@@ -56,6 +82,10 @@ func (server *Server) InitializeDB(dbConfig DBConfig) {
 		panic("Failed on connecting to the database server")
 	}
 
+}
+
+func (server *Server) InitializeAppConfig(appConfig AppConfig) {
+	server.AppConfig = &appConfig
 }
 
 func (server *Server) dbMigrate() {
@@ -103,4 +133,41 @@ func (server *Server) InitCommand(config AppConfig, dbConfig DBConfig) {
 func (server *Server) Run(addr string) {
 	fmt.Printf("Listening to port %s", addr)
 	log.Fatal(http.ListenAndServe(addr, server.Router))
+}
+
+func GetPaginationLink(config *AppConfig, param PaginationParams) (PaginationLink, error) {
+	var link []PageLink
+
+	totalPage := int32(math.Ceil(float64(param.TotalRow) / float64(param.PerPage)))
+
+	for i := 1; int32(i) <= totalPage; i++ {
+		link = append(link, PageLink{
+			Page:          int32(i),
+			Url:           fmt.Sprintf("%s/%s?page=%s", config.AppURL, param.Path, fmt.Sprint(i)),
+			IsCurrentPage: int32(i) == param.CurrentPage,
+		})
+	}
+
+	var nextPage int32
+	var prevPage int32
+
+	prevPage = 1
+	nextPage = totalPage
+
+	if param.CurrentPage > 2 {
+		prevPage = param.CurrentPage - 1
+	}
+
+	if param.CurrentPage < totalPage {
+		nextPage = param.CurrentPage + 1
+	}
+
+	return PaginationLink{
+		CurrentPage: fmt.Sprintf("%s/%s?page=%s", config.AppURL, param.Path, fmt.Sprint(param.CurrentPage)),
+		NextPage:    fmt.Sprintf("%s/%s?page=%s", config.AppURL, param.Path, fmt.Sprint(nextPage)),
+		PrevPage:    fmt.Sprintf("%s/%s?page=%s", config.AppURL, param.Path, fmt.Sprint(prevPage)),
+		TotalRow:    param.TotalRow,
+		TotalPage:   totalPage,
+		Link:        link,
+	}, nil
 }
