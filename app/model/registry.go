@@ -17,5 +17,7 @@ func RegisterModel() []Model {
 		{Model: OrderCustomer{}},
 		{Model: Payment{}},
 		{Model: Shipment{}},
+		{Model: Cart{}},
+		{Model: CartItem{}},
 	}
 }
